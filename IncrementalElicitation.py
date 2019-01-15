@@ -5,13 +5,13 @@ from gurobipy import *
 class CSS_Solver():
 
     def __init__(self, fichier_alternatives):
-        self.A = dict()  # dictionnaire des points alternatives
-        self.D_IdToMod = dict() # dictionnaire str -> int associant un entier a un nom de modele
-        self.D_IdToCrit = dict() # dictionnaire str -> int associant un entier a un critere
-        self.MMR_values = list()
-        self.DM_W = None
+        self.A = dict()                    # dictionnaire des points alternatives
+        self.D_IdToMod = dict()            # dictionnaire str -> int associant un entier a un nom de modele
+        self.D_IdToCrit = dict()           # dictionnaire str -> int associant un entier a un critere
+        self.MMR_values = list()           # Liste des MMR Valeurs calculees
+        self.DM_W = None                   # vecteur de poids decrivant les preferences du decideur
         self.GurobiModel = None
-        self.var_w = list()
+        self.var_w = list()                # liste des variables poids a eliciter
 
 
         with open(fichier_alternatives) as csvfile:
@@ -39,7 +39,7 @@ class CSS_Solver():
 
         print("ideal", self.i)
         print("nadir", self.n)
-        print(self.M_Points)
+        # print(self.M_Points)
 
 
     def ideal(self):
@@ -75,6 +75,7 @@ class CSS_Solver():
             self.DM_W = [float(W[criteria]) for criteria in self.L_criteres]
             #Verification si strictement positifs et somme a 1
         self.GurobiModel = Model("MADMC")
+        self.GurobiModel.setParam( 'OutputFlag', False)
         self.var_w = [self.GurobiModel.addVar(vtype=GRB.CONTINUOUS, lb=0, name="w_%d"%num) for num in range(len(self.L_criteres))]
         self.GurobiModel.update()
         c1 = quicksum([w for w in self.var_w])  #contrainte c1 : sum{w_i} = 1
@@ -85,67 +86,120 @@ class CSS_Solver():
     def query(self):
         D_MR_yj = dict()               # dictionnnaire associant a chaque alternative i sa valeur MR et l'indice de son adversaire le pire
 
-        for i in range(len(self.D_IdToMod)) :
-            var_lambda = self.GurobiModel.addVar(vtype=GRB.CONTINUOUS, lb=-GRB.INFINITY, name="lambda")
-            self.GurobiModel.update()
-            L_of_constraints_i = list()
-            D_of_constraints_expr = dict()
+        for i in range(len(self.D_IdToMod)):
+            L_PMR_i_j = list()
             for j in range(len(self.D_IdToMod)):
                 if (i != j):
-                    #C_max_i_j : contraite de type Lambda >= f(x_i) - f(y_j)
-                    C_max_i_j = LinExpr()
-                    #f_x_i
                     f_x_i = quicksum(self.M_Points[i,k] * self.var_w[k] for k in range(len(self.L_criteres)))
                     f_y_j = quicksum(self.M_Points[j,k] * self.var_w[k] for k in range(len(self.L_criteres)))
-                    C_max_i_j = var_lambda - f_x_i - f_y_j
-                    D_of_constraints_expr[j] = C_max_i_j
-                    L_of_constraints_i.append(self.GurobiModel.addConstr(C_max_i_j >= 0))
+                    self.GurobiModel.setObjective(f_x_i - f_y_j, GRB.MAXIMIZE)
                     self.GurobiModel.update()
-            self.GurobiModel.setObjective(var_lambda, GRB.MINIMIZE)
-            self.GurobiModel.update()
-            self.GurobiModel.optimize()
-            MR_x_i = self.GurobiModel.objVal
+                    self.GurobiModel.optimize()
+                    PMR_i_j = self.GurobiModel.objVal
+                    L_PMR_i_j.append((PMR_i_j, j))
+
+
             # j_star : indice du pire adversaire de i
-            for j in D_of_constraints_expr:
-                if D_of_constraints_expr[j].getValue() == MR_x_i:
-                    j_star = j
-            for constraint in L_of_constraints_i:
-                self.GurobiModel.remove(constraint)
-            self.GurobiModel.remove(var_lambda)
-            self.GurobiModel.update()
-            D_MR_yj[i] = (MR_x_i, j_star)
+            L_PMR_i_j.sort(key=lambda c : c[0], reverse=True)
+            MR_i , j_star = L_PMR_i_j[0]
+            # if MR_i > L_PMR_i_j[1][0]:
+            #     print("===>>Unique")
+            # elif MR_i == L_PMR_i_j[1][0]:
+            #     print("===>not Unique")
+
+            D_MR_yj[i] = (MR_i, j_star)
 
         #determiner MMR et donc la question a poser
         query_tuple = None
         MMR_value = None
+
         for i, MR_jStar in D_MR_yj.items():
             MR_i, j_star = MR_jStar
-            if query_tuple == None or query_tuple[0] < MR_i:
+            if query_tuple == None or MMR_value > MR_i:
                 MMR_value = MR_i
                 query_tuple = (i, j_star)
+
+        print("Minimax Regret ", MMR_value)
         self.MMR_values.append(MMR_value)
         return query_tuple
 
     def update_model_with_query(self, query):
         i, j = query
+        # for j in L_j:
         f_x_i = sum([self.M_Points[i, k]*self.DM_W[k] for k in range(len(self.L_criteres))])
         f_x_j = sum([self.M_Points[j, k]*self.DM_W[k] for k in range(len(self.L_criteres))])
         f_x_i_expr = quicksum(self.M_Points[i,k] * self.var_w[k] for k in range(len(self.L_criteres)))
         f_y_j_expr = quicksum(self.M_Points[j,k] * self.var_w[k] for k in range(len(self.L_criteres)))
         if f_x_i <= f_x_j :
             self.GurobiModel.addConstr(f_x_i_expr - f_y_j_expr <= 0)
+            self.GurobiModel.update()
+            print("DM prefers ", self.D_IdToMod[i], "to", self.D_IdToMod[j])
         else:
             self.GurobiModel.addConstr(f_y_j_expr - f_x_i_expr <= 0)
+            self.GurobiModel.update()
+            print("DM prefers ", self.D_IdToMod[j], "to", self.D_IdToMod[i])
+
+        print("Contraint(s) added!\n\n")
+
+    def DM_preference(self):
+        i_star = None
+        value_of_i_star = None
+        for i in range(len(self.D_IdToMod)):
+            f_i = sum([self.M_Points[i, k]*self.DM_W[k] for k in range(len(self.L_criteres))])
+            # print(self.D_IdToMod[i], f_i)
+            if i_star == None or f_i < value_of_i_star:
+                i_star = i
+                value_of_i_star = f_i
+        print("DM preferences using weights", self.D_IdToMod[i_star], value_of_i_star)
+        return self.D_IdToMod[i_star]
+
+    def best_alternative_elicitated(self):
+        L_Var_x = list()
+        L_f_expr_x = list()
+        for i in range(len(self.D_IdToMod)):
+            point_i = self.M_Points[i,:]
+            L_Var_x.append(self.GurobiModel.addVar(vtype=GRB.BINARY, name="x_%d"%i))
+            L_f_expr_x.append(quicksum(point_i[k]*self.var_w[k] for k in range(len(self.L_criteres))))
+            self.GurobiModel.update()
+        cst = self.GurobiModel.addConstr(quicksum(x for x in L_Var_x) == 1)
         self.GurobiModel.update()
+        obj = quicksum(L_Var_x[i]*L_f_expr_x[i] for i in range(len(L_f_expr_x)))
+        self.GurobiModel.update()
+        self.GurobiModel.setObjective(obj, GRB.MINIMIZE)
+        self.GurobiModel.optimize()
+        i_p = None
+        for i in range(len(self.D_IdToMod)):
+            if L_Var_x[i].x == 1:
+                i_p = i
+        #retirer cst et les variables x
+        self.GurobiModel.remove(cst)
+        for x in L_Var_x:
+            self.GurobiModel.remove(x)
+        self.GurobiModel.update()
+
+        return self.D_IdToMod[i_p]
 
 
     def start(self):
+        nb = 0
         self.initialization()
-        while len(self.MMR_values) == 0 or self.MMR_values[-1] != 0:
-            self.update_model_with_query(self.query())
+        DM_preference_alternative = self.DM_preference()
+        while len(self.MMR_values) == 0 or self.best_alternative_elicitated() != DM_preference_alternative:
+            nb += 1
+            query = self.query()
+            print ("==============Query==============", query)
+            self.update_model_with_query(query)
+
+            # print("============================MMR_values===========================================", self.MMR_values)
         print(self.MMR_values)
+        self.best_alternative_elicitated()
+
 
 
 if __name__ == '__main__':
+
     m = CSS_Solver('voitures.csv')
     m.start()
+    m.DM_preference()
+    print(m.best_alternative_elicitated())
+
