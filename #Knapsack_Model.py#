@@ -8,8 +8,7 @@ class Knapsack_Model():
 
     def __init__(self, fichier_alternatives):
         self.P_Lexmax = list()             # dict solution monocritere optimale
-        self.U = list()                    # list de dictionnaire d'utilite de chaque objet
-        self.OPT = [0, set()]                    # tuple (valeur, elements retenus) decrivant la valeur optimale
+        self.U = list()                    # list de dictionnaire d'utilite de chaque objet       self.OPT = [0, set()]                    # tuple (valeur, elements retenus) decrivant la valeur optimale
         self.GurobiModel = None            # modele PL
         self.x_var = list()                # variables du modele
         self.list_CST= list()                # list des criteres apprises
@@ -122,29 +121,24 @@ class Knapsack_Model():
                 self.DM_prefered_alternative = i
                 val_min = val
         # print("\tDM unknown preference is {} :\n\t{}\n\t{}".format(self.D_IdToMod[self.DM_prefered_alternative], self.L_criteres,
-        #                                                            self.M_Points[self.DM_prefered_alternative]))
+                                                                   #self.M_Points[self.DM_prefered_alternative]))
 
 
     def add_Tchebycheff_CST(self, point_reference=None):
 
-        if point_reference == None:
+        if point_reference == None :
             point_reference = self.I
-
         for j in range(self.n_criteria):
-            if (self.N[j] != self.I[j]):
-                Lambda = 1 / (self.N[j] - self.I[j])  # self.Criteria_Weight[j] / (self.N[j] - self.I[j])
-            else:
-                Lambda = 1
-
+            Lambda = self.Criteria_Weight[j] / (self.N[j] - self.I[j])
             cst =  Lambda * self.y_var[j] - point_reference[j]
             self.GurobiModel.addConstr(self.z_var >= cst)
 
 
-    def nearest_point_to_I(self, epsilon=0.1):
+    def nearest_point_to_I(self, epsilon=0.01):
         self.initialize_I_N_X_star()
         self.compute_I_and_N_once()
         self.initialize_Model()
-        # self.upload_criteria_weight()
+        self.upload_criteria_weight()
         # print("IDEAL ",self.I)
         # print("NADIRE ",self.N)
         # print("Cr_WEIGHT ",self.Criteria_Weight)
@@ -153,8 +147,9 @@ class Knapsack_Model():
             # print("ONLY SOLUTION ",self.I)
             return
 
-        Obj = self.z_var + epsilon * quicksum( [( self.y_var[j]  - self.I[j] ) / ( self.N[j] - self.I[j])  for j in range(self.n_criteria)  if self.N[j] != self.I[j] ])
-                                     # quicksum(self.Criteria_Weight[j] * (self.y_var[j] - self.I[j]) / (self.N[j] - self.I[j])  for j in range(self.n_criteria) )
+
+        Obj = self.z_var + epsilon * quicksum( self.Criteria_Weight[j] * ( self.y_var[j]  - self.I[j] ) / ( self.N[j] - self.I[j])  for j in range(self.n_criteria) )
+
         self.GurobiModel.setObjective(Obj, GRB.MINIMIZE)
         self.GurobiModel.update()
 
@@ -204,14 +199,13 @@ def write_in_file(filename,n,p,t2):
 
 if __name__ == '__main__':
 
-    for n in range(2,200,5) :#[2,3,4,5,7,9,12,14,17,20,24,28,35] :
-        for p in range(3,200,5): #[3,5,10,15,20,25,30,40,50,60,70,100] :
+    for n in [2,3,4,5,7,9,12,14,17,20,24,28,35] :
+        for p in [3,5,10,15,20,25,30,40,50,60,70,100] :
             Knapsack_Model.generate_knapsack_instance(n,p)
             knapsack = Knapsack_Model("knapsack_instance.csv")
             t1 = time.time()
             knapsack.nearest_point_to_I()
-            t2 = time.time() - t1
-	    print(n," ",p," done !")
+            t2 = time.time()
 
             write_in_file("result.txt",n,p,t2)
 
