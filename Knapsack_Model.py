@@ -33,8 +33,8 @@ class Knapsack_Model():
                 self.Weight.append(int(ligne_alternative["w"]))
                 del ligne_alternative["w"]
                 l_utility = list()
-                for i in range(len(ligne_alternative)):
-                    l_utility.append(int(ligne_alternative["u%d"%(i+1)]))
+                for i in range(1,len(ligne_alternative)+1):
+                    l_utility.append(int(ligne_alternative["u%d"%(i)]))
                 self.U.append(l_utility)
 
         self.p_obj = len(self.Weight)
@@ -48,7 +48,7 @@ class Knapsack_Model():
         self.N = [ list() for i in range(self.n_criteria)]
 
     def set_N(self,critere, value):
-        self.N[critere] = value + 1
+        self.N[critere] = value
 
     def update_Model(self):
         Constraints = self.GurobiModel.getConstrs()
@@ -166,8 +166,8 @@ class Knapsack_Model():
 
     def criteria_to_improve(self):
         print("DM ",self.DM_prefered_alternative[0])
-        dif = (self.OPT[0] - self.DM_prefered_alternative[0]) / (self.N - self.I)
-        # print("DIFF ",dif)
+        dif = 1.0*(self.OPT[0] - self.DM_prefered_alternative[0]) / (self.N - self.I)
+        print("DIFF ",dif)
         criteria_id  = 0
         max_value = dif[0]
         for i in range(1, self.n_criteria):
@@ -180,10 +180,10 @@ class Knapsack_Model():
 
 
     def set_criteria_to_improve(self, criteria_id):
-        value_of_this_criteria_in_current_opt = self.OPT[0][criteria_id] + 1
+        value_of_this_criteria_in_current_opt = self.OPT[0][criteria_id]
         self.set_N(criteria_id,value_of_this_criteria_in_current_opt)
         cst = self.y_var[criteria_id]
-        self.list_CST.append(cst >= value_of_this_criteria_in_current_opt)
+        self.list_CST.append(cst >= value_of_this_criteria_in_current_opt + 1)
 
 
     def add_Tchebycheff_CST(self, point_reference):
@@ -298,16 +298,18 @@ def test_random_instances():
     # p = 300
     n = 200
     # for n in range(2, 1022, 20):  # [2,3,4,5,7,9,12,14,17,20,24,28,35] :
-    for p in range(5, 100005, 500):  # [3,5,10,15,20,25,30,40,50,60,70,100] :
+    for p in range(11005, 100005, 500):  # [3,5,10,15,20,25,30,40,50,60,70,100] :
             Knapsack_Model.generate_knapsack_instance(n,p)
             knapsack = Knapsack_Model("knapsack_instance.csv")
-            knapsack.first_Initilization_Model()
-            knapsack.initialize_I_N_X_star()
-            knapsack.compute_I_and_N_once()
+
 
             t1 = time.time()
+            knapsack.initialize_I_N_X_star()
+            knapsack.compute_I_and_N_once()
+            knapsack.first_Initilization_Model()
             knapsack.nearest_point_to_I()
             t2 = time.time() - t1
+
     	    print(n," ",p," done !")
 
             write_in_file("result_p.txt",n,p,t2)
@@ -320,6 +322,9 @@ if __name__ == '__main__':
     # knapsack = Knapsack_Model("knapsack_instance.csv")
     #
     # t1 = time.time()
+    # knapsack.initialize_I_N_X_star()
+    # knapsack.compute_I_and_N_once()
+    # knapsack.first_Initilization_Model()
     # knapsack.nearest_point_to_I()
     # print("TIME ",time.time() - t1)
 
