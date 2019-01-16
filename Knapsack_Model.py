@@ -135,8 +135,8 @@ class Knapsack_Model():
         # print("Uploading weights to use from {}...\n\t{}\n\t{}".format(weight_file, self.L_criteres, self.Criteria_Weight))
 
 
-    def upload_DM_weight_preference(self, UnknownDMAgregationFunctionFile='DM_weights_file_knapsack_5.csv'):
-        # print("Uploading DM linear agregation function from {} ...".format(UnknownDMAgregationFunctionFile))
+    def upload_DM_weight_preference(self, UnknownDMAgregationFunctionFile='DM_weights_file_knapsack_2.csv'):
+        print("Uploading DM linear agregation function from {} ...".format(UnknownDMAgregationFunctionFile))
         with open(UnknownDMAgregationFunctionFile) as csvfile:
             ligne_poids = csv.DictReader(csvfile, delimiter=',')
             W = ligne_poids.next()
@@ -161,20 +161,20 @@ class Knapsack_Model():
                 sol.add(i)
         self.DM_prefered_alternative = np.array([ sum([self.U[i][j] for i in sol ]) for j in range(self.n_criteria)]),sol
 
-        print("\tDM unknown preference is {} :\n".format(self.DM_prefered_alternative))
+        print("\tDM unknown preference is {}: \n\t{} \n\t{} ".format(self.DM_prefered_alternative[1],self.L_criteres,list(self.DM_prefered_alternative[1])))
 
 
     def criteria_to_improve(self):
-        print("DM ",self.DM_prefered_alternative[0])
+        # print("DM ",self.DM_prefered_alternative[0])
         dif = 1.0*(self.OPT[0] - self.DM_prefered_alternative[0]) / (self.N - self.I)
-        print("DIFF ",dif)
+        # print("DIFF ",dif)
         criteria_id  = 0
         max_value = dif[0]
         for i in range(1, self.n_criteria):
             if dif[i] > max_value:
                 max_value = dif[i]
                 criteria_id = i
-        print("\t{} is too low for DM !\n\n".format(self.L_criteres[criteria_id]))
+        print("\t{} = {} is too low for DM !\n\n".format(self.OPT[0][criteria_id],self.L_criteres[criteria_id]))
 
         return criteria_id
 
@@ -217,7 +217,7 @@ class Knapsack_Model():
         if( np.array_equal(self.I, self.N)  ):
             all_poss_obj = set([ i for i in self.P_Lexmax[0]])
             self.OPT = np.array([ sum([self.U[i][j] for i in all_poss_obj ]) for j in range(self.n_criteria)]), all_poss_obj
-            # print("ONLY ONE SOLUTION ",self.OPT)
+            print("UNIQUE SOLUTION")
             return
 
         Obj = self.z_var + epsilon * quicksum( [( self.y_var[j]  - reference_point[j] ) / ( self.N[j] - self.I[j])  for j in range(self.n_criteria)  if self.N[j] != self.I[j] ])
@@ -248,10 +248,10 @@ class Knapsack_Model():
 
         while True:
             self.nearest_point_to_I()
-
+            print(("Proposition to DM : {} \n\t{}\n\t{}").format(self.OPT[1],self.L_criteres,list(self.OPT[0])))
             if self.OPT[1] == self.DM_prefered_alternative[1]:
                 print("Exploration stopped : DM preference found!!!")
-                print("OPT DONE ",self.OPT)
+                # print("OPT DONE ",self.OPT)
                 return
 
             criteria_to_improve = self.criteria_to_improve()
@@ -328,11 +328,11 @@ if __name__ == '__main__':
     # knapsack.nearest_point_to_I()
     # print("TIME ",time.time() - t1)
 
-    test_random_instances()
+    # test_random_instances()
 
 
-    # Knapsack_Model.generate_knapsack_instance(5, 10)
-    # knapsack = Knapsack_Model("knapsack_instance.csv")
-    # knapsack.start_exploration()
+    Knapsack_Model.generate_knapsack_instance(2, 10)
+    knapsack = Knapsack_Model("knapsack_instance.csv")
+    knapsack.start_exploration()
 
 
