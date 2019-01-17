@@ -80,23 +80,6 @@ class Knapsack_Model():
         self.OPT = [np.array([]), set()]
 
 
-    # def initialize_Model(self):
-    #     self.GurobiModel = Model("MADMC")
-    #     self.GurobiModel.setParam( 'OutputFlag', False)
-    #     self.x_var = [self.GurobiModel.addVar(vtype=GRB.BINARY, lb=0, name="x_%d"%num) for num in range(self.p_obj )]
-    #     self.y_var = [ quicksum(self.U[i][j] * self.x_var[i] for i in range(self.p_obj)) for j in range(self.n_criteria) ]
-    #     self.z_var = self.GurobiModel.addVar(vtype=GRB.CONTINUOUS, lb=0, name="z")
-    #     self.GurobiModel.update()
-    #     # contrainte de sac-a-dos
-    #     cst_knapsack = (quicksum([ self.Weight[i] * self.x_var[i]  for i in range(self.p_obj)])  <= self.capacity)
-    #     self.list_CST.append(cst_knapsack)
-    #     for cst  in self.list_CST :
-    #         self.GurobiModel.addConstr( cst )
-    #         self.GurobiModel.update()
-    #
-    #
-    #     self.GurobiModel.update()
-
     def compute_I_and_N_once(self):
         self.initialize_I_N_X_star()
         m = Model("monoObj")
@@ -161,7 +144,7 @@ class Knapsack_Model():
                 sol.add(i)
         self.DM_prefered_alternative = np.array([ sum([self.U[i][j] for i in sol ]) for j in range(self.n_criteria)]),sol
 
-        print("\tDM unknown preference is {}: \n\t{} \n\t{} ".format(self.DM_prefered_alternative[1],self.L_criteres,list(self.DM_prefered_alternative[1])))
+        print("\tDM unknown preference is {}: \n\t{} \n\t{} ".format(list(self.DM_prefered_alternative[1]),self.L_criteres,list(self.DM_prefered_alternative[0])))
 
 
     def criteria_to_improve(self):
@@ -174,7 +157,7 @@ class Knapsack_Model():
             if dif[i] > max_value:
                 max_value = dif[i]
                 criteria_id = i
-        print("\t{} = {} is too low for DM !\n\n".format(self.OPT[0][criteria_id],self.L_criteres[criteria_id]))
+        print("\t{} = {} is too low for DM !\n\n".format(self.L_criteres[criteria_id],self.OPT[0][criteria_id]))
 
         return criteria_id
 
@@ -202,9 +185,6 @@ class Knapsack_Model():
 
 
     def nearest_point_to_I(self, reference_point=None, epsilon=0.1):
-
-        # self.initialize_I_N_X_star()
-        # self.compute_I_and_N_once()
 
         if reference_point == None:
             reference_point = self.I
@@ -248,7 +228,7 @@ class Knapsack_Model():
 
         while True:
             self.nearest_point_to_I()
-            print(("Proposition to DM : {} \n\t{}\n\t{}").format(self.OPT[1],self.L_criteres,list(self.OPT[0])))
+            print(("Proposition to DM : {} \n\t{}\n\t{}").format(list(self.OPT[1]),self.L_criteres,list(self.OPT[0])))
             if self.OPT[1] == self.DM_prefered_alternative[1]:
                 print("Exploration stopped : DM preference found!!!")
                 # print("OPT DONE ",self.OPT)
@@ -265,7 +245,7 @@ class Knapsack_Model():
             P = ligne_performance.next()
             reference_point = [int(P[criteria]) for criteria in self.L_criteres]
 
-        n_p = self.nearest_point_to_I(reference_point=reference_point, epsilon=epsilon)
+        # n_p = self.nearest_point_to_I(reference_point=reference_point, epsilon=epsilon)
         return n_p
 
 
